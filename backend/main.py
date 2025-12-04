@@ -47,9 +47,6 @@ async def upload_data(
 # Mount the uploads directory to serve images
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Mount the frontend directory to serve index.html
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
-
 @app.get("/gallery")
 def gallery():
     images = [f for f in os.listdir(UPLOAD_DIR) if f.endswith(('.jpg', '.png', '.jpeg'))]
@@ -100,3 +97,11 @@ def gallery():
     """
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html_content)
+
+# Mount the frontend directory to serve index.html
+# We mount it at the root "/" LAST so it doesn't override other routes
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
