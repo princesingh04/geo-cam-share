@@ -44,10 +44,59 @@ async def upload_data(
         
     return {"status": "success", "message": "Data received", "file": filename, "location": {"lat": latitude, "lon": longitude}}
 
+# Mount the uploads directory to serve images
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 # Mount the frontend directory to serve index.html
-# We mount it at the root "/"
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/gallery")
+def gallery():
+    images = [f for f in os.listdir(UPLOAD_DIR) if f.endswith(('.jpg', '.png', '.jpeg'))]
+    images.sort(reverse=True) # Newest first
+    
+    log_content = ""
+    if os.path.exists(os.path.join(UPLOAD_DIR, "locations.log")):
+        with open(os.path.join(UPLOAD_DIR, "locations.log"), "r") as f:
+            log_content = f.read()
+
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>GeoCam Gallery</title>
+        <style>
+            body { font-family: sans-serif; padding: 20px; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+            .card { border: 1px solid #ddd; padding: 10px; border-radius: 8px; }
+            img { max-width: 100%; border-radius: 4px; }
+            pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+        </style>
+    </head>
+    <body>
+        <h1>Captured Data</h1>
+        
+        <h2>Locations Log</h2>
+        <pre>""" + log_content + """</pre>
+        
+        <h2>Images</h2>
+        <div class="grid">
+    """
+    
+    for img in images:
+        html_content += f'''
+            <div class="card">
+                <a href="/uploads/{img}" target="_blank">
+                    <img src="/uploads/{img}" loading="lazy">
+                </a>
+                <p>{img}</p>
+            </div>
+        '''
+        
+    html_content += """
+        </div>
+    </body>
+    </html>
+    """
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html_content)
